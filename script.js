@@ -4,6 +4,7 @@ const tools = [
     { name: 'Zero-Day Exploit', boost: { power: 0.3 } },
     { name: 'VPN Chain', boost: { stealth: 0.3 } },
     { name: 'Botnet Access', boost: { power: 0.4 } },
+    // add more tools with different boosts (stealth, power, etc.)
 ];
 
 const actionCards = [
@@ -12,14 +13,13 @@ const actionCards = [
     { name: 'Brute Force', effect: { power: 0.2 }, description: 'Attempt to crack the target system, moderately increasing power this turn.' },
     { name: 'Exploit Weakness', effect: { power: 0.3 }, description: 'Utilize a known exploit, significantly increasing power this turn.' },
     { name: 'Cloak Signal', effect: { stealth: 0.1, speed: 0.1 }, description: 'Obfuscate your connection, slightly increasing both stealth and speed.' },
-    // Podemos adicionar mais cartas com efeitos diferentes (ataque, defesa, utilidade, etc.)
+    // add more cards with different effects (attack, defense, utility, etc.)
 ];
 
-// --- MOVE THESE DECLARATIONS TO THE TOP ---
+// Company names, mission types, and targets for mission generation
 const companies = ['BiotechCorp', 'NeuralNet Inc.', 'QuantumSoft', 'Cyberdyne', 'OmniData', 'GhostWorks', 'ZeroPoint Labs'];
 const missionTypes = ['Hack', 'Steal', 'Erase', 'Plant fake evidence on', 'Exfiltrate', 'Blackmail', 'Corrupt data of'];
 const targets = ['prototype', 'research files', 'CEO emails', 'financial records', 'customer database', 'AI model', 'drone schematics'];
-// --- END OF MOVED DECLARATIONS ---
 
 let player = {
     money: 100,
@@ -29,28 +29,28 @@ let player = {
     arsenal: ['Basic Scanner'],
     deck: ['Scan Network', 'Scan Network', 'Brute Force'],
     inventory: [],
-    gameDate: { day: 2, month: 5, year: 2032 } // Starting date
+    gameDate: { day: 2, month: 5, year: 2032 }
 };
 
 let missions = [];
 let currentMission = null;
-let gameTime = 9; // Hora inicial do jogo
-let gameInterval;
+let gameTime = 9;
+let gameInterval; 
 let runningTasks = [];
 
 function updateHUD() {
-    document.getElementById('player-money-display').innerText = `Money: $${player.money}`;
-    document.getElementById('player-cred-display').innerText = `Cred: ${player.cred}`;
-    document.getElementById('player-heat-display').innerText = `Heat: ${player.heat}`;
-    document.getElementById('current-time').innerText = `Time: ${gameTime}:00`;
-    document.getElementById('current-date').innerText = `Date: ${player.gameDate.day}/${player.gameDate.month}/${player.gameDate.year}`; // Removed <span class="math-inline"> tags
+    document.getElementById('player-money-display').innerText = `money: $${player.money}`;
+    document.getElementById('player-cred-display').innerText = `cred: ${player.cred}`;
+    document.getElementById('player-heat-display').innerText = `heat: ${player.heat}`;
+    document.getElementById('current-time').innerText = `time: ${gameTime}:00`;
+    document.getElementById('current-date').innerText = `date: ${player.gameDate.day}/${player.gameDate.month}/${player.gameDate.year}`;
 }
 
 function advanceTime() {
     gameTime += 3;
     if (gameTime >= 22) {
         gameTime = 9;
-        showScreen('sleep'); // Show the sleep screen instead of alert
+        showScreen('sleep');
     }
 }
 
@@ -121,7 +121,7 @@ function renderLoadout() {
 }
 
 function selectMission(idx) {
-    currentMission = { ...missions[idx], originalIndex: idx, taskCount: 0 }; // Initialize taskCount
+    currentMission = { ...missions[idx], originalIndex: idx, taskCount: 0 };
     document.getElementById('prep-mission-name').innerText = currentMission.name;
     renderLoadout();
     showScreen('prep');
@@ -133,7 +133,7 @@ function startGameLoop() {
             updateTasks();
             updateHUD();
             renderRunningTasks();
-        }, 3000); // Adjust interval as needed
+        }, 3000);
     }
 }
 
@@ -145,11 +145,11 @@ function startTaskFromArsenal(mission, toolName) {
 
     const taskDuration = 2;
 
-    console.log("Starting task for mission original index:", mission.originalIndex, "tool:", toolName); // Log original index
+    console.log("Starting task for mission original index:", mission.originalIndex, "tool:", toolName);
 
     runningTasks.push({
         name: `Using ${toolName} on ${mission.name}`,
-        missionId: mission.originalIndex, // Use the original index
+        missionId: mission.originalIndex,
         toolName: toolName,
         duration: taskDuration,
         timeLeft: taskDuration
@@ -164,18 +164,19 @@ function startTaskFromArsenal(mission, toolName) {
     showScreen('home');
     advanceTime(); // Advance time when a task starts
 
+    // Call startGameLoop when a task starts and the loop isn't running
     if (!gameInterval) {
-        startGameLoop(); // Call startGameLoop when a task starts and the loop isn't running
+        startGameLoop();
     }
 }
 
 function passTurn() {
-    console.log("--- Pass Turn ---"); // Added log for clarity
+    console.log("--- Pass Turn ---");
     runningTasks.forEach(task => {
         task.timeLeft--;
-        console.log(`Task: ${task.name}, Time Left: ${task.timeLeft}`); // Log task time
+        console.log(`Task: ${task.name}, Time Left: ${task.timeLeft}`);
     });
-    updateTasks(); // Now update and potentially finish tasks
+    updateTasks();
     advanceTime();
     updateHUD();
     renderRunningTasks();
@@ -203,17 +204,17 @@ function updateTasks() {
 
 function finishArsenalTask(task) {
     const missionIndex = task.missionId;
-    const mission = missions[missionIndex]; // Directly access from missions array
+    const mission = missions[missionIndex]; 
     const tool = tools.find(t => t.name === task.toolName);
 
-    console.log("--- finishArsenalTask called for:", task.name, "---"); // Added log
-    console.log("Mission Index:", missionIndex); // Added log
-    console.log("Mission:", mission); // Added log
-    console.log("Tool:", tool); // Added log
+    console.log("--- finishArsenalTask called for:", task.name, "---");
+    console.log("Mission Index:", missionIndex);
+    console.log("Mission:", mission);
+    console.log("Tool:", tool);
 
     if (mission && tool) {
         applyToolEffectToMission(mission, tool.boost);
-        displayGameMessage(`Task '${task.name}' finished.`); // Use in-game message
+        displayGameMessage(`Task '${task.name}' finished.`);
 
         // Decrement the task count for the current mission
         if (currentMission && currentMission.originalIndex === missionIndex) {
@@ -221,13 +222,13 @@ function finishArsenalTask(task) {
             console.log("Current Mission Task Count Decremented:", currentMission.taskCount);
             if (currentMission.taskCount <= 0) {
                 console.log("Task count reached 0, calling finishMission");
-                finishMission(missionIndex); // Call finishMission with the index
+                finishMission(missionIndex); 
             } else {
                 console.log("Remaining tasks:", currentMission.taskCount);
             }
         }
     } else {
-        console.error("Error: Mission or tool not found in finishArsenalTask"); // Added log
+        console.error("Error: Mission or tool not found in finishArsenalTask");
     }
 }
 
@@ -250,7 +251,6 @@ function applyToolEffectToMission(mission, boost) {
 
 
 function finishMission(originalMissionIndex) {
-    // Find the mission in the missions array based on its original index
     const missionIndexInArray = missions.findIndex((m, index) => index === originalMissionIndex);
     const mission = missions[missionIndexInArray];
 
@@ -261,31 +261,31 @@ function finishMission(originalMissionIndex) {
 
     console.log("Finishing mission:", mission.name);
     console.log("Final difficulty RIGHT BEFORE CHECK:", mission.difficulty);
-    console.log("Mission Reward:", mission.reward); // Log the reward object
-    console.log("Player inventory BEFORE potential reward:", player.inventory); // Log inventory
+    console.log("Mission Reward:", mission.reward);
+    console.log("Player inventory BEFORE potential reward:", player.inventory);
 
     let message = '';
     if (mission.difficulty <= 0) {
         console.log("Mission successful!");
         console.log("Reward money:", mission.reward.money);
         console.log("Reward cred:", mission.reward.cred);
-        console.log("Player money BEFORE reward:", player.money); // Log before
-        console.log("Player cred BEFORE reward:", player.cred);   // Log before
+        console.log("Player money BEFORE reward:", player.money);
+        console.log("Player cred BEFORE reward:", player.cred);
         player.money += mission.reward.money;
         player.cred += mission.reward.cred;
-        console.log("Player money AFTER reward:", player.money);  // Log after
-        console.log("Player cred AFTER reward:", player.cred);    // Log after
-        message = `SUCCESS! +$${mission.reward.money} / +${mission.reward.cred} cred`; // Removed <span class="math-inline"> tags
+        console.log("Player money AFTER reward:", player.money);
+        console.log("Player cred AFTER reward:", player.cred);
+        message = `SUCCESS! +$${mission.reward.money} / +${mission.reward.cred} cred`;
         if (mission.bonus) {
-            console.log("Bonus item:", mission.bonus); // Log the bonus
-            console.log("Player inventory BEFORE bonus:", player.inventory); // Log before
+            console.log("Bonus item:", mission.bonus);
+            console.log("Player inventory BEFORE bonus:", player.inventory);
             player.inventory.push(mission.bonus);
-            console.log("Player inventory AFTER bonus:", player.inventory);  // Log after
+            console.log("Player inventory AFTER bonus:", player.inventory);
             message += ` / +${mission.bonus}`;
         }
     } else {
         player.heat += mission.heat;
-        message = `FAILED! $0 / +${mission.heat} HEAT (Remaining Difficulty: ${mission.difficulty})`; // Removed <span class="math-inline"> tags
+        message = `FAILED! $0 / +${mission.heat} HEAT (Remaining Difficulty: ${mission.difficulty})`;
         if (player.heat >= 5) {
             message += ' / TOO HOT! GAME OVER.';
             setTimeout(() => location.reload(), 3000);
@@ -293,7 +293,7 @@ function finishMission(originalMissionIndex) {
     }
 
     displayGameMessage(message);
-    missions.splice(missionIndexInArray, 1); // Now using the found index
+    missions.splice(missionIndexInArray, 1);
     currentMission = null;
     showScreen('home');
     updateHUD();
@@ -303,8 +303,8 @@ function generateMission() {
     const company = companies[Math.floor(Math.random() * companies.length)];
     const missionType = missionTypes[Math.floor(Math.random() * missionTypes.length)];
     const target = targets[Math.floor(Math.random() * targets.length)];
-    const difficulty = 0; // Setting difficulty to 0 for immediate success
-    const rewardMoney = 100; // Small guaranteed reward
+    const difficulty = 0;
+    const rewardMoney = 100;
     const rewardCred = 1;
     const heatIncrease = 0;
     const possibleBonus = 'Test Data';
@@ -331,7 +331,7 @@ function renderShop() {
         if (!player.arsenal.includes(tool.name)) {
             const btn = document.createElement('button');
             const price = getToolPrice(tool);
-            btn.innerText = `buy ${tool.name} [$${price}]`; // Removed <span class="math-inline"> tags
+            btn.innerText = `buy ${tool.name} [$${price}]`;
             btn.onclick = () => buyTool(tool, price);
             shop.appendChild(btn);
             shop.appendChild(document.createElement('br'));
@@ -342,7 +342,7 @@ function renderShop() {
     actionCards.forEach(card => {
         const price = getCardPrice(card);
         const btn = document.createElement('button');
-        btn.innerText = `buy ${card.name} [$${price}] - ${card.description}`; // Removed <span class="math-inline"> tags
+        btn.innerText = `buy ${card.name} [$${price}] - ${card.description}`;
         btn.onclick = () => buyCard(card, price);
         shop.appendChild(btn);
         shop.appendChild(document.createElement('br'));
@@ -352,7 +352,7 @@ function renderShop() {
     ['stealth', 'speed', 'power'].forEach(skill => {
         const btn = document.createElement('button');
         const price = getSkillPrice(player.skills[skill]);
-        btn.innerText = `upgrade ${skill} [$${price}]`; // Removed <span class="math-inline"> tags
+        btn.innerText = `upgrade ${skill} [$${price}]`;
         btn.onclick = () => upgradeSkill(skill, price);
         shop.appendChild(btn);
         shop.appendChild(document.createElement('br'));
@@ -413,18 +413,18 @@ function buyCard(card, price) {
 
 function renderInventory() {
     const inventoryList = document.getElementById('inventory-list');
-    inventoryList.innerHTML = '<h3>Inventory:</h3>';
+    inventoryList.innerHTML = '<h3>inventory:</h3>';
     if (player.inventory.length === 0) {
-        inventoryList.innerHTML += '<p>Empty</p>';
+        inventoryList.innerHTML += '<p>empty</p>';
     } else {
         const ul = document.createElement('ul');
         player.inventory.forEach(item => {
             const li = document.createElement('li');
-            li.innerText = item; // For now, just the item name
+            li.innerText = item;
             const sellButton = document.createElement('button');
-            sellButton.innerText = `Sell [${getItemSellPrice(item)}]`;
+            sellButton.innerText = `sell [${getItemSellPrice(item)}]`;
             sellButton.onclick = () => sellItem(item);
-            li.appendChild(document.createTextNode(' ')); // Add space
+            li.appendChild(document.createTextNode(' ')); 
             li.appendChild(sellButton);
             ul.appendChild(li);
         });
@@ -452,21 +452,21 @@ function sellItem(item) {
 function renderStats() {
     const statsDiv = document.getElementById('stats-display');
     statsDiv.innerHTML = `
-        <h3>Player Stats:</h3>
-        <p>Money: $${player.money}</p>
-        <p>Cred: ${player.cred}</p>
-        <p>Heat: ${player.heat}</p>
-        <h3>Skills:</h3>
+        <h3>player stats:</h3>
+        <p>money: $${player.money}</p>
+        <p>cred: ${player.cred}</p>
+        <p>heat: ${player.heat}</p>
+        <h3>skills:</h3>
         <ul>
-            <li>Stealth: ${player.skills.stealth}</li>
-            <li>Speed: ${player.skills.speed}</li>
-            <li>Power: ${player.skills.power}</li>
+            <li>stealth: ${player.skills.stealth}</li>
+            <li>speed: ${player.skills.speed}</li>
+            <li>power: ${player.skills.power}</li>
         </ul>
-        <h3>Arsenal:</h3>
+        <h3>arsenal:</h3>
         <ul>
             ${player.arsenal.map(item => `<li>${item}</li>`).join('')}
         </ul>
-        <h3>Deck:</h3>
+        <h3>deck:</h3>
         <ul>
             ${player.deck.map(card => `<li>${card}</li>`).join('')}
         </ul>
@@ -475,8 +475,8 @@ function renderStats() {
 
 function displayGameMessage(message) {
     const messageDiv = document.createElement('div');
-    messageDiv.innerText = `>> ${message}`; // Simple text format
-    messageDiv.classList.add('game-notification'); // New class for styling
+    messageDiv.innerText = `>> ${message}`;
+    messageDiv.classList.add('game-notification');
     const notificationArea = document.getElementById('game-notifications');
     notificationArea.appendChild(messageDiv);
 
