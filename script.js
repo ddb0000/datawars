@@ -16,10 +16,16 @@ const actionCards = [
     // add more cards with different effects (attack, defense, utility, etc.)
 ];
 
+
+
 // Company names, mission types, and targets for mission generation
 const companies = ['BiotechCorp', 'NeuralNet Inc.', 'QuantumSoft', 'Cyberdyne', 'OmniData', 'GhostWorks', 'ZeroPoint Labs'];
 const missionTypes = ['Hack', 'Steal', 'Erase', 'Plant fake evidence on', 'Exfiltrate', 'Blackmail', 'Corrupt data of'];
 const targets = ['prototype', 'research files', 'CEO emails', 'financial records', 'customer database', 'AI model', 'drone schematics'];
+
+// DOM Element References
+const commandInput = document.getElementById('command-input');
+const consoleOutput = document.getElementById('console-output');
 
 let player = {
     money: 100,
@@ -44,8 +50,7 @@ function updateHUD() {
     document.getElementById('player-heat-display').innerText = `heat: ${player.heat}`;
     document.getElementById('current-time').innerText = `time: ${gameTime}:00`;
     document.getElementById('current-date').innerText = `date: ${player.gameDate.day}/${player.gameDate.month}/${player.gameDate.year}`;
-    const commandInput = document.getElementById('command-input');
-    const consoleOutput = document.getElementById('console-output');
+
 
     // Also update money display in the shop screen if it's visible
     if (document.getElementById('upgrade').classList.contains('active')) {
@@ -59,14 +64,18 @@ function logToConsole(message) {
     // Scroll to the bottom
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
 }
+
 function advanceTime() {
     gameTime += 3;
+    console.log("Advanced time to:", gameTime);
     if (gameTime >= 22) {
+        console.log("Time hit >= 22, resetting to 9 for sleep and advancing date.");
         gameTime = 9;
+        saveGame();
+        advanceDate();
         showScreen('sleep');
     }
 }
-
 function advanceDate() {
     player.gameDate.day++;
     // Basic month/year rollover (very simplified)
@@ -191,6 +200,7 @@ function passTurn() {
     });
     updateTasks();
     advanceTime();
+    saveGame();
     updateHUD();
     renderRunningTasks();
 }
@@ -513,6 +523,7 @@ function displayGameMessage(message) {
 
 // --- Save/Load Functions ---
 function saveGame() {
+    console.log("Saving gameTime:", gameTime);
     const gameData = {
         player: player,
         missions: missions,
@@ -551,6 +562,7 @@ function loadGame() {
 
             // Load game time
             gameTime = gameData.gameTime !== undefined ? gameData.gameTime : 9; // Use default if not saved
+            console.log("Loaded gameTime:", gameTime);
 
             console.log('Game loaded!');
             // Re-start game loop if there are running tasks
