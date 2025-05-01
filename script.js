@@ -27,8 +27,48 @@ const targets = ['prototype', 'research files', 'CEO emails', 'financial records
 const commandInput = document.getElementById('command-input');
 const consoleOutput = document.getElementById('console-output');
 
-let player = {
-    money: 100,
+// --- Event Delegation Listener for the Shop ---
+const shopListElement = document.getElementById('shop-list');
+if (shopListElement) {
+    shopListElement.addEventListener('click', function(event) {
+        // Check if the clicked element IS a button with a data-action
+        if (event.target.tagName === 'BUTTON' && event.target.dataset.action) {
+            const button = event.target;
+            const action = button.dataset.action;
+            // Decode name attributes in case they were encoded
+            const toolName = button.dataset.toolName ? decodeURIComponent(button.dataset.toolName) : null;
+            const cardName = button.dataset.cardName ? decodeURIComponent(button.dataset.cardName) : null;
+            const skillName = button.dataset.skillName; // Skill names are simple, no need to encode/decode
+            const price = parseFloat(button.dataset.price); // Get price from data attribute
+
+            console.log(`[Shop Listener] Clicked: Action=${action}, Price=${price}`);
+
+            try { // Add error handling around the actions
+                if (action === 'buyTool' && toolName) {
+                    const tool = tools.find(t => t.name === toolName);
+                    if (tool) { buyTool(tool, price); }
+                    else { console.error("Event Delegation Error: Could not find tool data for:", toolName); }
+
+                } else if (action === 'buyCard' && cardName) {
+                    const card = actionCards.find(c => c.name === cardName);
+                     if (card) { buyCard(card, price); }
+                     else { console.error("Event Delegation Error: Could not find card data for:", cardName); }
+
+                } else if (action === 'upgradeSkill' && skillName) {
+                     upgradeSkill(skillName, price);
+                }
+            } catch (e) {
+                console.error("Error executing action from shop listener:", e);
+            }
+        }
+    });
+    console.log("Shop event listener attached to #shop-list.");
+} else {
+    console.error("Could not find #shop-list element to attach listener.");
+}
+
+const INITIAL_PLAYER_STATE = {
+    money: 1500, // Keep initial money low for now, adjust if needed for shop
     cred: 0,
     skills: { stealth: 1, speed: 1, power: 1 },
     heat: 0,
@@ -37,6 +77,9 @@ let player = {
     inventory: [],
     gameDate: { day: 2, month: 5, year: 2032 }
 };
+
+// --- Modify the initial player declaration ---
+let player = JSON.parse(JSON.stringify(INITIAL_PLAYER_STATE)); // Deep copy to avoid mutation issues
 
 let missions = [];
 let currentMission = null;
@@ -47,14 +90,14 @@ let runningTasks = [];
 function updateHUD() {
     document.getElementById('player-money-display').innerText = `money: $${player.money}`;
     document.getElementById('player-cred-display').innerText = `cred: ${player.cred}`;
-    document.getElementById('player-heat-display').innerText = `heat: ${player.heat}`;
+    document.getElementById('player-heat-display').innerText = `heat: ${player.heat.toFixed(1)}`;
     document.getElementById('current-time').innerText = `time: ${gameTime}:00`;
     document.getElementById('current-date').innerText = `date: ${player.gameDate.day}/${player.gameDate.month}/${player.gameDate.year}`;
 
 
     // Also update money display in the shop screen if it's visible
     if (document.getElementById('upgrade').classList.contains('active')) {
-         document.getElementById('player-money').innerText = `money: $${player.money}`;
+        document.getElementById('player-money').innerText = `money: $${player.money}`;
     }
 }
 function logToConsole(message) {
@@ -71,7 +114,7 @@ function advanceTime() {
     if (gameTime >= 22) {
         console.log("Time hit >= 22, resetting to 9 for sleep and advancing date.");
         gameTime = 9;
-        saveGame();
+        saveGame()
         advanceDate();
         showScreen('sleep');
     }
@@ -133,6 +176,8 @@ function renderContracts() {
 function renderLoadout() {
     const loadout = document.getElementById('loadout-list');
     loadout.innerHTML = '';
+    // Log the arsenal content AS SEEN BY THIS FUNCTION
+    console.log("[renderLoadout] Player Arsenal:", JSON.stringify(player.arsenal)); // <-- ADD THIS
     player.arsenal.forEach(toolName => {
         const btn = document.createElement('button');
         btn.innerText = `> ${toolName}`;
@@ -208,6 +253,7 @@ function passTurn() {
 function updateTasks() {
     console.log("--- updateTasks called ---");
     console.log("Current runningTasks:", runningTasks);
+    let tasksWereRunning = runningTasks.length > 0; // Check if tasks were running at the start of this check
 
     // Iterate backwards to safely remove elements
     for (let i = runningTasks.length - 1; i >= 0; i--) {
@@ -215,14 +261,31 @@ function updateTasks() {
         console.log(`Checking task at index ${i}: ${task.name}, timeLeft: ${task.timeLeft}`);
         if (task.timeLeft <= 0) {
             console.log(`Task at index ${i} is finished.`);
-            finishArsenalTask(task);
+            finishArsenalTask(task); // This might modify currentMission or missions array
             console.log("Before splice, runningTasks length:", runningTasks.length);
-            runningTasks.splice(i, 1);
-            console.log("After splice, runningTasks length:", runningTasks.length);
-            console.log("runningTasks after splice:", runningTasks);
+            // Important: Check if the task still exists in the array before splicing,
+            // in case finishArsenalTask->finishMission already modified the runningTasks array
+            // Although iterating backwards usually handles this fine with splice.
+            if (runningTasks[i] === task) {
+                runningTasks.splice(i, 1);
+                console.log("After splice, runningTasks length:", runningTasks.length);
+                console.log("runningTasks after splice:", runningTasks);
+            } else {
+                 console.log(`Task at index ${i} was already removed (likely by finishMission).`);
+            }
         }
     }
     console.log("--- updateTasks finished ---");
+
+    // --- Add this block to stop the interval ---
+    // If tasks WERE running before this check, but the array is NOW empty,
+    // and the interval is actually running, stop it.
+    if (tasksWereRunning && runningTasks.length === 0 && gameInterval) {
+        console.log("No tasks running, stopping game interval.");
+        clearInterval(gameInterval);
+        gameInterval = null; // Reset the interval ID tracker so startGameLoop can restart it later
+    }
+    // --- End added block ---
 }
 
 function finishArsenalTask(task) {
@@ -350,39 +413,53 @@ function generateMissionList(amount = 5) {
 
 function renderShop() {
     const shop = document.getElementById('shop-list');
-    shop.innerHTML = '<h3>tools:</h3>';
+    // Clear previous content by setting innerHTML to empty string at the start
+    shop.innerHTML = '';
+
+    let contentHtml = ''; // Build the entire HTML string for shop items
+
+    // --- Render Tools ---
+    contentHtml += '<h3>tools:</h3>';
     tools.forEach(tool => {
         if (!player.arsenal.includes(tool.name)) {
-            const btn = document.createElement('button');
-            const price = getToolPrice(tool);
-            btn.innerText = `buy ${tool.name} [$${price}]`;
-            btn.onclick = () => buyTool(tool, price);
-            shop.appendChild(btn);
-            shop.appendChild(document.createElement('br'));
+            try {
+                const price = getToolPrice(tool);
+                // Construct button HTML string correctly using template literals
+                // Use encodeURIComponent just in case names have special chars (good practice)
+                contentHtml += `<button data-action="buyTool" data-tool-name="${encodeURIComponent(tool.name)}" data-price="${price}">buy ${tool.name} [$${price}]</button><br>`;
+            } catch (e) {
+                console.error(`ERROR rendering tool ${tool.name}:`, e);
+                // Optionally add placeholder or error message to contentHtml here
+            }
         }
     });
 
-    shop.innerHTML += '<h3>action cards:</h3>';
+    // --- Render Cards ---
+    contentHtml += '<h3>action cards:</h3>';
     actionCards.forEach(card => {
-        const price = getCardPrice(card);
-        const btn = document.createElement('button');
-        btn.innerText = `buy ${card.name} [$${price}] - ${card.description}`;
-        btn.onclick = () => buyCard(card, price);
-        shop.appendChild(btn);
-        shop.appendChild(document.createElement('br'));
+         try {
+             const price = getCardPrice(card);
+             // Construct button HTML string correctly
+             contentHtml += `<button data-action="buyCard" data-card-name="${encodeURIComponent(card.name)}" data-price="${price}">buy ${card.name} [$${price}] - ${card.description}</button><br>`;
+         } catch (e) {
+             console.error(`ERROR rendering card ${card.name}:`, e);
+         }
     });
 
-    shop.innerHTML += '<h3>skill upgrades:</h3>';
+    // --- Render Skills ---
+    contentHtml += '<h3>skill upgrades:</h3>';
     ['stealth', 'speed', 'power'].forEach(skill => {
-        const btn = document.createElement('button');
-        const price = getSkillPrice(player.skills[skill]);
-        btn.innerText = `upgrade ${skill} [$${price}]`;
-        btn.onclick = () => upgradeSkill(skill, price);
-        shop.appendChild(btn);
-        shop.appendChild(document.createElement('br'));
+         try {
+             const price = getSkillPrice(player.skills[skill]);
+             // Construct button HTML string correctly
+             contentHtml += `<button data-action="upgradeSkill" data-skill-name="${skill}" data-price="${price}">upgrade ${skill} [$${price}]</button><br>`;
+         } catch (e) {
+             console.error(`ERROR rendering skill ${skill}:`, e);
+         }
     });
 
-    document.getElementById('player-money').innerText = `money: $${player.money}`;
+    // Set the combined HTML for all items at once
+    shop.innerHTML = contentHtml;
 }
 
 function getSkillPrice(level) {
@@ -409,6 +486,7 @@ function getToolPrice(tool) {
 }
 
 function buyTool(tool, price) {
+    console.log(`Attempting to buy tool: ${tool.name}. Price: $${price}. Player Money: $${player.money}`);
     if (player.money >= price) {
         player.money -= price;
         player.arsenal.push(tool.name);
@@ -417,6 +495,7 @@ function buyTool(tool, price) {
         updateHUD();
         alert(`>> purchased ${tool.name}`);
     } else {
+        console.log("Buy failed: Not enough money.");
         alert('>> not enough money');
     }
 }
@@ -429,6 +508,7 @@ function getCardPrice(card) {
 
 
 function buyCard(card, price) {
+    console.log(`Attempting to buy card: ${card.name}. Price: $${price}. Player Money: $${player.money}`);
     if (player.money >= price) {
         player.money -= price;
         player.deck.push(card.name);
@@ -437,6 +517,7 @@ function buyCard(card, price) {
         updateHUD();
         alert(`>> purchased ${card.name}`);
     } else {
+        console.log("Buy failed: Not enough money.");
         alert('>> not enough money');
     }
 }
@@ -489,7 +570,7 @@ function renderStats() {
         <h3>player stats:</h3>
         <p>money: $${player.money}</p>
         <p>cred: ${player.cred}</p>
-        <p>heat: ${player.heat}</p>
+        <p>heat: ${player.heat.toFixed(1)}</p>
         <h3>skills:</h3>
         <ul>
             <li>stealth: ${player.skills.stealth}</li>
@@ -506,7 +587,6 @@ function renderStats() {
         </ul>
     `;
 }
-
 function displayGameMessage(message) {
     const messageDiv = document.createElement('div');
     messageDiv.innerText = `>> ${message}`;
@@ -604,13 +684,162 @@ function loadGame() {
 }
 
 
+function resetGameToInitialState() {
+    console.log("--- Resetting Game State ---");
+    logToConsole(">> Initializing system reset...");
+
+    // Reset player object (use deep copy again)
+    player = JSON.parse(JSON.stringify(INITIAL_PLAYER_STATE));
+
+    // Reset other game state variables
+    missions = [];
+    runningTasks = [];
+    gameTime = 9;
+    currentMission = null;
+
+    // Stop any running game loop interval
+    if (gameInterval) {
+        clearInterval(gameInterval);
+        gameInterval = null;
+        console.log("Game loop interval cleared.");
+    }
+
+    // Clear the save data from localStorage
+    try {
+        localStorage.removeItem('datawarsSave');
+        console.log('Saved game data cleared.');
+        logToConsole(">> Local save data purged.");
+    } catch (e) {
+        console.error('Failed to clear saved game data:', e);
+        logToConsole(">> Error purging local save data.");
+    }
+
+    // Generate new starting missions
+    generateMissionList();
+    console.log("Generated new mission list.");
+
+    // Update UI
+    updateHUD();
+    renderRunningTasks(); // Will show empty list
+    // If the shop or inventory screen is active, re-render them
+    if (document.getElementById('upgrade').classList.contains('active')) {
+        renderShop();
+    }
+    if (document.getElementById('inventory').classList.contains('active')) {
+        renderInventory();
+    }
+    // Optionally force back to home screen
+    showScreen('home');
+
+    logToConsole(">> System reset complete. Welcome back, mercenary.");
+    console.log("--- Game Reset Complete ---");
+}
+
+
+function processCommand(input) {
+    logToConsole(`> ${input}`); // Echo the command
+    const parts = input.trim().toLowerCase().split(' ');
+    const command = parts[0];
+    const args = parts.slice(1);
+
+    switch (command) {
+        case 'help':
+            logToConsole("Available commands: help, home, contracts, stats, inventory, shop/upgrade, clear, mission <index>, sell <item name>, sudo reset-player ...");
+            // Add more help text
+            break;
+        case 'home':
+        case 'h':
+            showScreen('home');
+            logToConsole("Navigated to home screen.");
+            break;
+        case 'contracts':
+        case 'c':
+            showScreen('contracts');
+            logToConsole("Showing available contracts.");
+            break;
+        case 'stats':
+        case 's':
+            showScreen('stats');
+            logToConsole("Displaying player stats.");
+            break;
+        case 'inventory':
+        case 'i':
+        case 'inv':
+            showScreen('inventory');
+            logToConsole("Opening inventory.");
+            break;
+        case 'shop':
+        case 'upgrade':
+        case 'u':
+            showScreen('upgrade');
+            logToConsole("Opening upgrade shop.");
+            break;
+        case 'mission':
+            if (args.length > 0) {
+                const missionIndex = parseInt(args[0], 10);
+                // Check if the current screen is 'contracts' to allow selection
+                if (document.getElementById('contracts').classList.contains('active') && !isNaN(missionIndex) && missionIndex >= 0 && missionIndex < missions.length) {
+                    selectMission(missionIndex);
+                    logToConsole(`Selected mission ${missionIndex}: ${missions[missionIndex].name}`);
+                } else {
+                    logToConsole("Error: Cannot select mission now, or invalid index. Go to 'contracts' first.");
+                }
+            } else {
+                logToConsole("Usage: mission <index>");
+            }
+            break;
+        case 'sell':
+             if (args.length > 0) {
+                const itemName = args.join(' '); // Rejoin args in case item name has spaces
+                // Check if player has the item
+                const itemIndex = player.inventory.findIndex(i => i.toLowerCase() === itemName); // Case-insensitive check
+                if (itemIndex > -1) {
+                     // Pass the actual item name with correct casing
+                     sellItem(player.inventory[itemIndex]);
+                } else {
+                    logToConsole(`Error: Item '${itemName}' not found in inventory.`);
+                }
+            } else {
+                logToConsole("Usage: sell <item name>");
+            }
+            break;
+        case 'sudo':
+            if (args.length > 0 && args[0] === 'reset-player') {
+                 resetGameToInitialState();
+            } else {
+                logToConsole("Usage: sudo reset-player");
+            }
+            break;
+        case 'clear':
+            consoleOutput.innerHTML = ''; // Clear the console display
+            break;
+        // Add more commands for other actions (e.g., 'buy <item>', 'pass', 'use <tool> <mission>')
+        default:
+            logToConsole(`Unknown command: ${command}`);
+            break;
+    }
+}
 
 // --- Initial Game Setup ---
+commandInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        const commandText = commandInput.value;
+        if (commandText.trim() !== '') {
+            processCommand(commandText);
+        }
+        commandInput.value = ''; // Clear the input field
+        event.preventDefault(); // Prevent default Enter key behavior
+    }
+});
+
 // Load the game first
 loadGame();
 
 // Show the initial screen (this also calls updateHUD and renderRunningTasks)
 showScreen('home');
+
+// Initial console message
+logToConsole("Console initialized. Type 'help' for commands.");
 
 // run the game loop  *immediately* on load even with no tasks
 // uncomment the line below. Otherwise, it only starts when a task is initiated.
