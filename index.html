@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>datawars</title>
+    <meta name="description" content="Datawars - A text-based game where you play as a mercenary in a digital world. Complete contracts, upgrade your arsenal, and manage your resources." />
+    <meta name="keywords" content="Datawars, game, text-based, mercenary, contracts, upgrade, arsenal, inventory, stats" />
+    
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Datawars" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Datawars" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <style>
+        body {
+            background: black;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 20px;
+        }
+        .screen {
+            display: none;
+        }
+        .active {
+            display: block;
+        }
+        button {
+            background: black;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 5px 10px;
+            margin-top: 10px;
+            font-family: monospace;
+            cursor: pointer;
+        }
+        #hud {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            color: #00ff00;
+            font-size: 0.9em;
+            text-align: right;
+        }
+        #hud > div {
+            margin-bottom: 5px;
+        }
+        #running-tasks {
+            margin-top: 20px;
+            border: 1px dashed #00ff00;
+            padding: 10px;
+        }
+        #running-tasks h3 {
+            margin-top: 0;  
+        }
+        #inventory-list, #stats-display {
+            margin-top: 20px;
+            margin-right: 50%;
+            border: 1px dashed #00ff00;
+            padding: 10px;
+        }
+        #inventory-list h3, #stats-display h3 {
+            margin-top: 0;
+        }
+        #sleep {
+            text-align: center;
+        }
+        #sleep h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        #sleep p {
+            font-size: 1.2em;
+        }
+        #game-notifications {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: #00ff00;
+            font-size: 0.9em;
+            max-width: 50%; 
+        }
+        .game-notification {
+            margin-bottom: 5px;
+            opacity: 1;
+            transition: opacity 1s ease-in-out;
+        }
+        @media (max-width: 768px) {
+        body {
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        #hud {
+            position: initial;
+            background: rgba(0, 0, 0, 0.8);
+            font-size: 0.75em;
+            padding: 10px;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        #pass-turn {
+            width: 100%;
+            font-size: 1.2em;
+        }
+        #running-tasks,
+        #inventory-list,
+        #stats-display {
+            margin-right: 0;
+            font-size: 0.9em;
+        }
+
+        button {
+            width: 100%;
+            font-size: 1em;
+            margin-top: 8px;
+        }
+
+        #game-notifications {
+            max-width: 100%;
+            font-size: 0.75em;
+        }
+    }
+
+    </style>
+</head>
+<body>
+
+<div id="hud">
+    <div id="current-date"></div>
+    <div id="current-time"></div>
+    <div><span id="player-money-display"></span></div>
+    <div><span id="player-cred-display"></span></div>
+    <div><span id="player-heat-display"></span></div>
+    <div id="game-notifications"></div>
+</div>
+
+<div id="home" class="screen active">
+    <h1>datawars</h1>
+    <p>welcome, mercenary.</p>
+    <button onclick="showScreen('contracts')">> view contracts</button>
+    <button onclick="showScreen('upgrade')">> upgrade arsenal</button>
+    <button onclick="showScreen('inventory')">> inventory</button>
+    <button onclick="showScreen('stats')">> stats</button>
+
+    <div id="running-tasks">
+        <h3>Running Tasks:</h3>
+        <ul id="running-task-list">
+        </ul>
+    </div>
+
+    <button id="pass-turn" onclick="passTurn()">>> Pass Turn</button>
+
+</div>
+
+<div id="contracts" class="screen">
+    <h2>contracts available:</h2>
+    <div id="contract-list"></div>
+    <button onclick="showScreen('home')">> back</button>
+</div>
+
+<div id="prep" class="screen">
+    <h2>prep mission:</h2>
+    <p id="prep-mission-name"></p>
+    <p>choose an item from your arsenal to use:</p>
+    <div id="loadout-list"></div>
+    <button onclick="showScreen('home')">> back</button>
+</div>
+
+<div id="inventory" class="screen">
+    <div id="inventory-list"></div>
+    <button onclick="showScreen('home')">> back</button>
+</div>
+
+<div id="stats" class="screen">
+    <div id="stats-display"></div>
+    <button onclick="showScreen('home')">> back</button>
+</div>
+
+<div id="loot" class="screen">
+    <h2>mission result:</h2>
+    <p id="loot-result"></p>
+    <button onclick="showScreen('home')">> return to base</button>
+</div>
+
+<div id="upgrade" class="screen">
+    <h2>upgrade arsenal</h2>
+    <div id="shop-list"></div>
+    <p id="player-money"></p>
+    <button onclick="showScreen('home')">> back</button>
+</div>
+
+<div id="sleep" class="screen">
+    <h2>ZZZ...</h2>
+    <p>You feel the digital fatigue wash over you.</p>
+    <p>Taking some time to clear your head...</p>
+    <button onclick="showScreen('home')">> back to work</button>
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
