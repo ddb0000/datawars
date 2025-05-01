@@ -44,8 +44,21 @@ function updateHUD() {
     document.getElementById('player-heat-display').innerText = `heat: ${player.heat}`;
     document.getElementById('current-time').innerText = `time: ${gameTime}:00`;
     document.getElementById('current-date').innerText = `date: ${player.gameDate.day}/${player.gameDate.month}/${player.gameDate.year}`;
-}
+    const commandInput = document.getElementById('command-input');
+    const consoleOutput = document.getElementById('console-output');
 
+    // Also update money display in the shop screen if it's visible
+    if (document.getElementById('upgrade').classList.contains('active')) {
+         document.getElementById('player-money').innerText = `money: $${player.money}`;
+    }
+}
+function logToConsole(message) {
+    const logEntry = document.createElement('div');
+    logEntry.textContent = message; // Use textContent to prevent HTML injection
+    consoleOutput.appendChild(logEntry);
+    // Scroll to the bottom
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
 function advanceTime() {
     gameTime += 3;
     if (gameTime >= 22) {
@@ -295,6 +308,7 @@ function finishMission(originalMissionIndex) {
     displayGameMessage(message);
     missions.splice(missionIndexInArray, 1);
     currentMission = null;
+    saveGame();
     showScreen('home');
     updateHUD();
 }
@@ -369,6 +383,7 @@ function upgradeSkill(skill, price) {
     if (player.money >= price) {
         player.money -= price;
         player.skills[skill] += 1;
+        saveGame();
         renderShop();
         alert(`>> upgraded ${skill} to level ${player.skills[skill]}`);
     } else {
@@ -378,7 +393,8 @@ function upgradeSkill(skill, price) {
 
 function getToolPrice(tool) {
     const base = 500;
-    const bonus = (tool.boost.stealth || tool.boost.power || 0) * 1000;
+    const totalBoost = Object.values(tool.boost).reduce((sum, val) => sum + val, 0);
+    const bonus = totalBoost * 1000;
     return base + bonus;
 }
 
@@ -386,7 +402,9 @@ function buyTool(tool, price) {
     if (player.money >= price) {
         player.money -= price;
         player.arsenal.push(tool.name);
+        saveGame();
         renderShop();
+        updateHUD();
         alert(`>> purchased ${tool.name}`);
     } else {
         alert('>> not enough money');
@@ -404,7 +422,9 @@ function buyCard(card, price) {
     if (player.money >= price) {
         player.money -= price;
         player.deck.push(card.name);
+        saveGame();
         renderShop();
+        updateHUD();
         alert(`>> purchased ${card.name}`);
     } else {
         alert('>> not enough money');
@@ -443,7 +463,11 @@ function getItemSellPrice(item) {
 function sellItem(item) {
     const price = getItemSellPrice(item);
     player.money += price;
-    player.inventory = player.inventory.filter(i => i !== item);
+    const itemIndex = player.inventory.findIndex(i => i === item);
+    if (itemIndex > -1) {
+        player.inventory.splice(itemIndex, 1);
+    }
+    saveGame();
     alert(`>> Sold '${item}' for $${price}.`);
     renderInventory();
     updateHUD();
@@ -487,6 +511,95 @@ function displayGameMessage(message) {
     }, 3000);
 }
 
-if (!gameInterval) {
-    // startGameLoop(); // COMMENT OUT THE INITIAL START
+// --- Save/Load Functions ---
+function saveGame() {
+    const gameData = {
+        player: player,
+        missions: missions,
+        runningTasks: runningTasks,
+        gameTime: gameTime,
+        // Do NOT save gameInterval directly, it's a timer ID
+        // Do NOT save currentMission directly, link it via missionId if needed,
+        // but runningTasks already links to missionId, so it might be redundant.
+        // Let's simplify and rely on runningTasks to imply current mission state.
+        // If currentMission was just for display/prep, it doesn't need saving.
+    };
+    try {
+        localStorage.setItem('datawarsSave', JSON.stringify(gameData));
+        console.log('Game saved!');
+    } catch (e) {
+        console.error('Failed to save game:', e);
+        displayGameMessage('Error: Failed to save game.');
+    }
 }
+
+
+function loadGame() {
+    try {
+        const savedData = localStorage.getItem('datawarsSave');
+        if (savedData) {
+            const gameData = JSON.parse(savedData);
+
+            // Load player data
+            player = gameData.player;
+
+            // Load missions
+            missions = gameData.missions || []; // Handle case where missions wasn't saved
+
+            // Load running tasks
+            runningTasks = gameData.runningTasks || []; // Handle case where runningTasks wasn't saved
+
+            // Load game time
+            gameTime = gameData.gameTime !== undefined ? gameData.gameTime : 9; // Use default if not saved
+
+            console.log('Game loaded!');
+            // Re-start game loop if there are running tasks
+            if (runningTasks.length > 0) {
+                startGameLoop();
+            }
+
+            // Ensure HUD and initial screen are updated after loading
+            updateHUD();
+            renderRunningTasks();
+            // The initial showScreen('home') call below will handle showing the main screen
+        } else {
+            console.log('No saved game found.');
+            // Initialize a new game if no save exists
+            generateMissionList(); // Generate missions for the first time
+            updateHUD(); // Update HUD with initial player stats
+        }
+    } catch (e) {
+        console.error('Failed to load game:', e);
+        displayGameMessage('Error: Failed to load game. Starting new game.');
+        // If loading fails, start a new game
+        player = { // Reset player to initial state
+            money: 100, cred: 0, skills: { stealth: 1, speed: 1, power: 1 }, heat: 0,
+            arsenal: ['Basic Scanner'], deck: ['Scan Network', 'Scan Network', 'Brute Force'],
+            inventory: [], gameDate: { day: 2, month: 5, year: 2032 }
+        };
+        missions = [];
+        runningTasks = [];
+        gameTime = 9;
+        currentMission = null;
+        if (gameInterval) {
+             clearInterval(gameInterval);
+             gameInterval = null;
+        }
+        generateMissionList();
+        updateHUD();
+        renderRunningTasks();
+    }
+}
+
+
+
+// --- Initial Game Setup ---
+// Load the game first
+loadGame();
+
+// Show the initial screen (this also calls updateHUD and renderRunningTasks)
+showScreen('home');
+
+// run the game loop  *immediately* on load even with no tasks
+// uncomment the line below. Otherwise, it only starts when a task is initiated.
+// startGameLoop();

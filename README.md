@@ -10,3 +10,4 @@ more contracts > more items (buyable and acquirable) > more stats/effects to too
  *   calculating mission success and failure.
  *   awarding rewards and applying penalties.
  *   managing the game's economy and player progression.
+ *   procedural contracts, factions and storyline
