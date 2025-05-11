@@ -1,5 +1,5 @@
 # datawars
-modern BBS dystopia sim 
+`modern BBS dystopia sim`
 complete contracts, upgrade your arsenal, manage resources and progress through a cyberpunk world.
 
 ## roadmap: 
