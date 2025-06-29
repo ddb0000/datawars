@@ -16,6 +16,11 @@ const actionCards = [
     // add more cards with different effects (attack, defense, utility, etc.)
 ];
 
+const consumables = [
+    { name: 'Drone Food', effect: { hunger: 20 }, price: 50 },
+    { name: 'Energy Drink', effect: { energy: 20 }, price: 75 }
+];
+
 
 
 // Company names, mission types, and targets for mission generation
@@ -39,6 +44,7 @@ if (shopListElement) {
             const toolName = button.dataset.toolName ? decodeURIComponent(button.dataset.toolName) : null;
             const cardName = button.dataset.cardName ? decodeURIComponent(button.dataset.cardName) : null;
             const skillName = button.dataset.skillName; // Skill names are simple, no need to encode/decode
+            const consumableName = button.dataset.consumableName ? decodeURIComponent(button.dataset.consumableName) : null;
             const price = parseFloat(button.dataset.price); // Get price from data attribute
 
             console.log(`[Shop Listener] Clicked: Action=${action}, Price=${price}`);
@@ -56,6 +62,10 @@ if (shopListElement) {
 
                 } else if (action === 'upgradeSkill' && skillName) {
                      upgradeSkill(skillName, price);
+                } else if (action === 'buyConsumable' && consumableName) {
+                     const item = consumables.find(c => c.name === consumableName);
+                     if (item) { buyConsumable(item, price); }
+                     else { console.error("Event Delegation Error: Could not find consumable data for:", consumableName); }
                 }
             } catch (e) {
                 console.error("Error executing action from shop listener:", e);
@@ -72,6 +82,9 @@ const INITIAL_PLAYER_STATE = {
     cred: 0,
     skills: { stealth: 1, speed: 1, power: 1 },
     heat: 0,
+    hunger: 100,
+    energy: 100,
+    lastAction: Date.now(),
     arsenal: ['Basic Scanner'],
     deck: ['Scan Network', 'Scan Network', 'Brute Force'],
     inventory: [],
@@ -91,8 +104,9 @@ function updateHUD() {
     document.getElementById('player-money-display').innerText = `money: $${player.money}`;
     document.getElementById('player-cred-display').innerText = `cred: ${player.cred}`;
     document.getElementById('player-heat-display').innerText = `heat: ${player.heat.toFixed(1)}`;
-    document.getElementById('current-time').innerText = `time: ${gameTime}:00`;
-    document.getElementById('current-date').innerText = `date: ${player.gameDate.day}/${player.gameDate.month}/${player.gameDate.year}`;
+    document.getElementById('player-hunger-display').innerText = `hunger: ${player.hunger}`;
+    document.getElementById('player-energy-display').innerText = `energy: ${player.energy}`;
+    document.getElementById('current-time').innerText = new Date().toUTCString();
 
 
     // Also update money display in the shop screen if it's visible
@@ -121,6 +135,13 @@ function advanceTime() {
 }
 function advanceDate() {
     player.gameDate.day++;
+    player.hunger = Math.max(0, player.hunger - 10);
+    if (player.hunger <= 0) {
+        alert('>> you starved!');
+        resetGameToInitialState();
+        return;
+    }
+    player.energy = 100;
     // Basic month/year rollover (very simplified)
     if (player.gameDate.day > 30) {
         player.gameDate.day = 1;
@@ -136,8 +157,9 @@ function renderRunningTasks() {
     const taskList = document.getElementById('running-task-list');
     taskList.innerHTML = '';
     runningTasks.forEach(task => {
+        const minutesLeft = Math.ceil((task.endsAt - Date.now()) / 60000);
         const listItem = document.createElement('li');
-        listItem.innerText = `${task.name} (Time left: ${task.timeLeft})`;
+        listItem.innerText = `${task.name} (Time left: ${minutesLeft}m)`;
         taskList.appendChild(listItem);
     });
 }
@@ -210,7 +232,12 @@ function startTaskFromArsenal(mission, toolName) {
     const tool = tools.find(t => t.name === toolName);
     if (!tool) return;
 
-    const taskDuration = 2;
+    const taskDuration = 2; // minutes
+    if (player.energy <= 0) {
+        alert('>> too tired, need to sleep');
+        return;
+    }
+    player.energy = Math.max(0, player.energy - 5);
 
     console.log("Starting task for mission original index:", mission.originalIndex, "tool:", toolName);
 
@@ -219,7 +246,7 @@ function startTaskFromArsenal(mission, toolName) {
         missionId: mission.originalIndex,
         toolName: toolName,
         duration: taskDuration,
-        timeLeft: taskDuration
+        endsAt: Date.now() + taskDuration * 60 * 1000
     });
 
     // Increment the task count for the current mission
@@ -239,10 +266,6 @@ function startTaskFromArsenal(mission, toolName) {
 
 function passTurn() {
     console.log("--- Pass Turn ---");
-    runningTasks.forEach(task => {
-        task.timeLeft--;
-        console.log(`Task: ${task.name}, Time Left: ${task.timeLeft}`);
-    });
     updateTasks();
     advanceTime();
     saveGame();
@@ -258,8 +281,9 @@ function updateTasks() {
     // Iterate backwards to safely remove elements
     for (let i = runningTasks.length - 1; i >= 0; i--) {
         const task = runningTasks[i];
-        console.log(`Checking task at index ${i}: ${task.name}, timeLeft: ${task.timeLeft}`);
-        if (task.timeLeft <= 0) {
+        const timeLeft = Math.ceil((task.endsAt - Date.now()) / 60000);
+        console.log(`Checking task at index ${i}: ${task.name}, minutes left: ${timeLeft}`);
+        if (Date.now() >= task.endsAt) {
             console.log(`Task at index ${i} is finished.`);
             finishArsenalTask(task); // This might modify currentMission or missions array
             console.log("Before splice, runningTasks length:", runningTasks.length);
@@ -446,6 +470,13 @@ function renderShop() {
          }
     });
 
+    // --- Render Consumables ---
+    contentHtml += '<h3>consumables:</h3>';
+    consumables.forEach(item => {
+         const price = item.price;
+         contentHtml += `<button data-action="buyConsumable" data-consumable-name="${encodeURIComponent(item.name)}" data-price="${price}">buy ${item.name} [$${price}]</button><br>`;
+    });
+
     // --- Render Skills ---
     contentHtml += '<h3>skill upgrades:</h3>';
     ['stealth', 'speed', 'power'].forEach(skill => {
@@ -522,6 +553,19 @@ function buyCard(card, price) {
     }
 }
 
+function buyConsumable(item, price) {
+    if (player.money >= price) {
+        player.money -= price;
+        player.inventory.push(item.name);
+        saveGame();
+        renderShop();
+        updateHUD();
+        alert(`>> purchased ${item.name}`);
+    } else {
+        alert('>> not enough money');
+    }
+}
+
 function renderInventory() {
     const inventoryList = document.getElementById('inventory-list');
     inventoryList.innerHTML = '<h3>inventory:</h3>';
@@ -535,8 +579,15 @@ function renderInventory() {
             const sellButton = document.createElement('button');
             sellButton.innerText = `sell [${getItemSellPrice(item)}]`;
             sellButton.onclick = () => sellItem(item);
-            li.appendChild(document.createTextNode(' ')); 
+            li.appendChild(document.createTextNode(' '));
             li.appendChild(sellButton);
+            if (isConsumable(item)) {
+                const useButton = document.createElement('button');
+                useButton.innerText = 'use';
+                useButton.onclick = () => consumeItem(item);
+                li.appendChild(document.createTextNode(' '));
+                li.appendChild(useButton);
+            }
             ul.appendChild(li);
         });
         inventoryList.appendChild(ul);
@@ -548,7 +599,30 @@ function getItemSellPrice(item) {
     if (item === 'Basic Data Packet') return 50;
     if (item === 'Encrypted Key') return 200;
     if (item === 'Advanced Toolkit') return 500;
+    if (item === 'Drone Food') return 25;
+    if (item === 'Energy Drink') return 40;
     return 100; // Default sell price
+}
+
+function isConsumable(item) {
+    return consumables.some(c => c.name === item);
+}
+
+function consumeItem(itemName) {
+    const item = consumables.find(c => c.name === itemName);
+    if (!item) return;
+    const idx = player.inventory.findIndex(i => i === itemName);
+    if (idx > -1) player.inventory.splice(idx, 1);
+    if (item.effect.hunger) {
+        player.hunger = Math.min(100, player.hunger + item.effect.hunger);
+    }
+    if (item.effect.energy) {
+        player.energy = Math.min(100, player.energy + item.effect.energy);
+    }
+    saveGame();
+    renderInventory();
+    updateHUD();
+    alert(`>> consumed ${itemName}`);
 }
 
 function sellItem(item) {
@@ -571,6 +645,8 @@ function renderStats() {
         <p>money: $${player.money}</p>
         <p>cred: ${player.cred}</p>
         <p>heat: ${player.heat.toFixed(1)}</p>
+        <p>hunger: ${player.hunger}</p>
+        <p>energy: ${player.energy}</p>
         <h3>skills:</h3>
         <ul>
             <li>stealth: ${player.skills.stealth}</li>
@@ -638,7 +714,12 @@ function loadGame() {
             missions = gameData.missions || []; // Handle case where missions wasn't saved
 
             // Load running tasks
-            runningTasks = gameData.runningTasks || []; // Handle case where runningTasks wasn't saved
+            runningTasks = (gameData.runningTasks || []).map(t => {
+                if (!t.endsAt && t.timeLeft) {
+                    t.endsAt = Date.now() + t.timeLeft * 60 * 1000;
+                }
+                return t;
+            });
 
             // Load game time
             gameTime = gameData.gameTime !== undefined ? gameData.gameTime : 9; // Use default if not saved
